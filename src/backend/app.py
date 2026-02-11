@@ -96,7 +96,7 @@ try:
             <p>Visualize custos detalhados, filtre por família e fornecedor, e categorize projetos.</p>
         </div>
         """, unsafe_allow_html=True)
-        st.page_link("pages/1_Consultar_OS.py", label="Abrir Consulta", icon="📊")
+        st.page_link("pages/1_Categorizacao.py", label="Abrir Consulta", icon="📊")
 
     with col2:
         st.markdown("""
@@ -107,11 +107,7 @@ try:
         """, unsafe_allow_html=True)
         st.page_link("pages/2_Catalogo.py", label="Abrir Catálogo", icon="📁")
 
-    # Sidebar simples
-    st.sidebar.markdown("**Navegação**")
-    st.sidebar.markdown("• Consultar OS: Análise detalhada")
-    st.sidebar.markdown("• Catálogo: Projetos categorizados")
-    st.sidebar.markdown("---")
+    # Sidebar
     st.sidebar.caption("CMV Hub v2.0 | ARV Systems")
 
 except FileNotFoundError:

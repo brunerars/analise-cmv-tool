@@ -1,0 +1,14 @@
+[[pages]]
+path = "src/backend/app.py"
+name = "Início"
+icon = "🏠"
+
+[[pages]]
+path = "src/backend/pages/1_Categorizacao.py"
+name = "Categorização"
+icon = "📊"
+
+[[pages]]
+path = "src/backend/pages/2_Catalogo.py"
+name = "Catálogo"
+icon = "📁"
