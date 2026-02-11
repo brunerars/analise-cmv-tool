@@ -1,4 +1,5 @@
 import sqlite3
+import shutil
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
@@ -6,6 +7,9 @@ from typing import Optional
 
 # Caminho do banco de dados
 DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "cmv_catalog.db"
+
+# Caminho para armazenamento de imagens
+IMAGES_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "images"
 
 # Áreas de atuação disponíveis
 AREAS_ATUACAO = [
@@ -28,6 +32,9 @@ def get_connection():
 
 def init_db():
     """Inicializa o banco de dados criando as tabelas necessárias."""
+    # Criar pasta de imagens se não existir
+    IMAGES_PATH.mkdir(parents=True, exist_ok=True)
+
     conn = get_connection()
     cursor = conn.cursor()
 
@@ -39,6 +46,18 @@ def init_db():
             complexidade TEXT NOT NULL,
             data_categorizacao DATETIME DEFAULT CURRENT_TIMESTAMP,
             usuario TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS maquinas_imagens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_servico TEXT NOT NULL,
+            nome_arquivo TEXT NOT NULL,
+            caminho_arquivo TEXT NOT NULL,
+            descricao TEXT,
+            data_upload DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (numero_servico) REFERENCES os_categorias(numero_servico)
         )
     """)
 
@@ -224,3 +243,157 @@ def contar_por_complexidade() -> dict:
     conn.close()
 
     return result
+
+
+def salvar_imagem_maquina(numero_servico: str, uploaded_file, descricao: str = None) -> bool:
+    """
+    Salva uma imagem para a máquina e registra no banco.
+
+    Args:
+        numero_servico: Código da OS
+        uploaded_file: Arquivo carregado via st.file_uploader
+        descricao: Descrição opcional da imagem
+
+    Returns:
+        True se sucesso, False se erro
+    """
+    try:
+        # Remover imagem anterior se existir (apenas uma imagem por máquina)
+        imagem_atual = get_imagem_principal(numero_servico)
+        if imagem_atual:
+            remover_imagem_maquina(imagem_atual['id'])
+
+        # Gerar nome único para o arquivo
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        extensao = Path(uploaded_file.name).suffix.lower()
+        nome_arquivo = f"OS_{numero_servico}_{timestamp}{extensao}"
+        caminho_arquivo = IMAGES_PATH / nome_arquivo
+
+        # Salvar arquivo
+        with open(caminho_arquivo, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+
+        # Registrar no banco
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            INSERT INTO maquinas_imagens (numero_servico, nome_arquivo, caminho_arquivo, descricao)
+            VALUES (?, ?, ?, ?)
+        """, (numero_servico, nome_arquivo, str(caminho_arquivo), descricao))
+
+        conn.commit()
+        conn.close()
+        return True
+
+    except Exception as e:
+        print(f"Erro ao salvar imagem: {e}")
+        return False
+
+
+def get_imagem_principal(numero_servico: str) -> Optional[dict]:
+    """
+    Retorna a imagem principal de uma máquina (a mais recente).
+
+    Args:
+        numero_servico: Código da OS
+
+    Returns:
+        Dicionário com dados da imagem ou None se não encontrada
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, numero_servico, nome_arquivo, caminho_arquivo, descricao, data_upload
+        FROM maquinas_imagens
+        WHERE numero_servico = ?
+        ORDER BY data_upload DESC
+        LIMIT 1
+    """, (numero_servico,))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if row:
+        return {
+            "id": row[0],
+            "numero_servico": row[1],
+            "nome_arquivo": row[2],
+            "caminho_arquivo": row[3],
+            "descricao": row[4],
+            "data_upload": row[5]
+        }
+    return None
+
+
+def listar_imagens_maquina(numero_servico: str) -> list:
+    """
+    Lista todas as imagens de uma máquina.
+
+    Args:
+        numero_servico: Código da OS
+
+    Returns:
+        Lista de dicionários com dados das imagens
+    """
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT id, numero_servico, nome_arquivo, caminho_arquivo, descricao, data_upload
+        FROM maquinas_imagens
+        WHERE numero_servico = ?
+        ORDER BY data_upload DESC
+    """, (numero_servico,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [
+        {
+            "id": row[0],
+            "numero_servico": row[1],
+            "nome_arquivo": row[2],
+            "caminho_arquivo": row[3],
+            "descricao": row[4],
+            "data_upload": row[5]
+        }
+        for row in rows
+    ]
+
+
+def remover_imagem_maquina(id_imagem: int) -> bool:
+    """
+    Remove uma imagem do sistema de arquivos e do banco.
+
+    Args:
+        id_imagem: ID da imagem no banco
+
+    Returns:
+        True se removido, False se erro
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Buscar caminho do arquivo
+        cursor.execute("SELECT caminho_arquivo FROM maquinas_imagens WHERE id = ?", (id_imagem,))
+        row = cursor.fetchone()
+
+        if row:
+            caminho = Path(row[0])
+            # Remover arquivo se existir
+            if caminho.exists():
+                caminho.unlink()
+
+            # Remover do banco
+            cursor.execute("DELETE FROM maquinas_imagens WHERE id = ?", (id_imagem,))
+            conn.commit()
+
+        conn.close()
+        return True
+
+    except Exception as e:
+        print(f"Erro ao remover imagem: {e}")
+        return False

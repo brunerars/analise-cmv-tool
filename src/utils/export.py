@@ -1,3 +1,4 @@
+import math
 import pandas as pd
 from io import BytesIO
 from datetime import datetime
@@ -188,6 +189,116 @@ def export_excel_detalhado(os_data: dict, numero_servico: str, categoria: dict =
         worksheet_forn.set_column(0, 0, 35)
         worksheet_forn.set_column(1, 1, 18)
         worksheet_forn.set_column(2, 2, 12)
+
+    output.seek(0)
+    return output
+
+
+def export_excel_filtrado(df_filtrado: pd.DataFrame, numero_servico: str) -> BytesIO:
+    """
+    Exporta apenas os itens filtrados para Excel.
+    Útil para orçamentista criar listas específicas (ex: somente sensores).
+
+    Args:
+        df_filtrado: DataFrame com itens filtrados
+        numero_servico: Código da OS ou identificador
+
+    Returns:
+        BytesIO com arquivo Excel
+    """
+    output = BytesIO()
+
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        workbook = writer.book
+
+        # Formatos
+        header_format = workbook.add_format({
+            'bold': True,
+            'bg_color': '#cc0000',
+            'font_color': 'white',
+            'border': 1,
+            'align': 'center'
+        })
+        money_format = workbook.add_format({'num_format': 'R$ #,##0.00', 'border': 1})
+        text_format = workbook.add_format({'border': 1, 'text_wrap': True})
+        total_format = workbook.add_format({
+            'bold': True,
+            'bg_color': '#f5f5f5',
+            'border': 1
+        })
+        total_money_format = workbook.add_format({
+            'bold': True,
+            'bg_color': '#f5f5f5',
+            'num_format': 'R$ #,##0.00',
+            'border': 1
+        })
+
+        # Preparar dados
+        if 'OrdemCompra' in df_filtrado.columns:
+            df_export = df_filtrado[['Item', 'FAMILIA', 'GRUPO', 'OrdemCompra', 'Fornecedor', 'QuantidadeComprada', 'ValorTotalComprado']].copy()
+            df_export.columns = ['Item', 'Família', 'Grupo', 'OC', 'Fornecedor', 'Quantidade', 'Valor']
+            df_export['OC'] = df_export['OC'].fillna(0).astype(int)
+        else:
+            df_export = df_filtrado[['Item', 'FAMILIA', 'GRUPO', 'Fornecedor', 'QuantidadeComprada', 'ValorTotalComprado']].copy()
+            df_export.columns = ['Item', 'Família', 'Grupo', 'Fornecedor', 'Quantidade', 'Valor']
+
+        # Tratar valores NaN/INF
+        df_export['Quantidade'] = df_export['Quantidade'].fillna(0)
+        df_export['Valor'] = df_export['Valor'].fillna(0)
+        df_export = df_export.fillna('')  # Preencher strings vazias para colunas de texto
+
+        df_export = df_export.sort_values('Valor', ascending=False)
+
+        # Calcular totais
+        total_qtd = df_export['Quantidade'].sum()
+        total_valor = df_export['Valor'].sum()
+
+        # Criar planilha
+        worksheet = workbook.add_worksheet('Itens Filtrados')
+
+        # Título
+        title_format = workbook.add_format({'bold': True, 'font_size': 14})
+        worksheet.write(0, 0, f"ITENS FILTRADOS - OS {numero_servico}", title_format)
+        worksheet.write(1, 0, f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+        worksheet.write(2, 0, f"Total de itens: {len(df_export)}")
+
+        # Headers
+        start_row = 4
+        for col_num, value in enumerate(df_export.columns.values):
+            worksheet.write(start_row, col_num, value, header_format)
+
+        # Dados
+        for row_num, row_data in enumerate(df_export.values, start=start_row + 1):
+            for col_num, value in enumerate(row_data):
+                # Tratar NaN e INF
+                if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
+                    value = 0
+                if col_num == len(row_data) - 1:  # Coluna Valor
+                    worksheet.write(row_num, col_num, value, money_format)
+                else:
+                    worksheet.write(row_num, col_num, value, text_format)
+
+        # Linha de total
+        total_row = start_row + len(df_export) + 1
+        worksheet.write(total_row, 0, "TOTAL", total_format)
+        for col in range(1, len(df_export.columns) - 2):
+            worksheet.write(total_row, col, "", total_format)
+        worksheet.write(total_row, len(df_export.columns) - 2, total_qtd, total_format)
+        worksheet.write(total_row, len(df_export.columns) - 1, total_valor, total_money_format)
+
+        # Ajustar largura das colunas
+        worksheet.set_column(0, 0, 50)  # Item
+        worksheet.set_column(1, 1, 20)  # Família
+        worksheet.set_column(2, 2, 20)  # Grupo
+        if 'OC' in df_export.columns:
+            worksheet.set_column(3, 3, 12)  # OC
+            worksheet.set_column(4, 4, 30)  # Fornecedor
+            worksheet.set_column(5, 5, 12)  # Quantidade
+            worksheet.set_column(6, 6, 15)  # Valor
+        else:
+            worksheet.set_column(3, 3, 30)  # Fornecedor
+            worksheet.set_column(4, 4, 12)  # Quantidade
+            worksheet.set_column(5, 5, 15)  # Valor
 
     output.seek(0)
     return output
