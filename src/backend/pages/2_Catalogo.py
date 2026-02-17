@@ -23,8 +23,15 @@ DATA_PATH = ROOT_DIR / "data" / "processed" / "cmv_data.csv"
 # Inicializar banco
 init_db()
 
-st.title("Catálogo de Máquinas")
-st.markdown("Visualize seus projetos categorizados")
+st.set_page_config(
+    page_title="Catálogo | CMV Hub",
+    page_icon="📁",
+    layout="wide"
+)
+
+st.title("📁 Catálogo de Máquinas")
+st.markdown("**Projetos categorizados e prontos para referência**")
+st.caption("Explore projetos similares, compare custos e use como base para novos orçamentos")
 
 # Carregar dados
 @st.cache_data
@@ -40,15 +47,24 @@ try:
     os_summary = carregar_resumo_os(df)
 
     # Sidebar com filtros
-    st.sidebar.header("Filtros")
+    st.sidebar.header("🔍 Filtros")
+    st.sidebar.caption("Refine sua busca por tipo de solução")
 
     # Filtro por área
     areas = ['Todas'] + AREAS_ATUACAO
-    filtro_area = st.sidebar.selectbox("Área de Atuação", areas)
+    filtro_area = st.sidebar.selectbox(
+        "Área de Atuação", 
+        areas,
+        help="Filtre por tipo de solução"
+    )
 
     # Filtro por complexidade
     complexidades = ['Todas'] + COMPLEXIDADES
-    filtro_complexidade = st.sidebar.selectbox("Complexidade", complexidades)
+    filtro_complexidade = st.sidebar.selectbox(
+        "Complexidade", 
+        complexidades,
+        help="Filtre por porte do projeto"
+    )
 
     # Buscar OSs categorizadas
     area_param = filtro_area if filtro_area != 'Todas' else None
@@ -58,24 +74,29 @@ try:
 
     # Estatísticas no sidebar
     st.sidebar.markdown("---")
-    st.sidebar.subheader("Estatísticas")
+    st.sidebar.subheader("📊 Estatísticas")
 
     contagem_area = contar_por_area()
 
-    st.sidebar.metric("Total Categorizadas", len(os_categorizadas))
+    st.sidebar.metric(
+        "Total Categorizadas", 
+        len(os_categorizadas),
+        help="Número de OSs já categorizadas no sistema"
+    )
 
     if contagem_area:
-        st.sidebar.markdown("**Por Área:**")
+        st.sidebar.markdown("**Por Área de Atuação:**")
         for area, count in contagem_area.items():
-            st.sidebar.caption(f"• {area[:20]}...: {count}")
+            st.sidebar.caption(f"• {area[:25]}{'...' if len(area) > 25 else ''}: **{count}**")
 
     # Conteúdo principal
     if not os_categorizadas:
-        st.info("Nenhuma OS categorizada ainda. Vá para 'Categorização' para categorizar.")
+        st.info("💡 Nenhuma OS categorizada ainda. Vá para **Categorização** para começar a criar seu catálogo.")
 
         # Mostrar preview das OSs disponíveis
         st.markdown("---")
-        st.subheader("OSs Disponíveis para Categorização")
+        st.subheader("📋 Preview: OSs Disponíveis para Categorização")
+        st.caption("As 10 maiores OSs por valor. Categorize-as para criar seu catálogo de referência.")
 
         preview_df = os_summary.head(10).copy()
         preview_df['Valor'] = preview_df['ValorTotal'].apply(
@@ -83,12 +104,19 @@ try:
         )
         st.dataframe(
             preview_df[['Numero_servico', 'Valor', 'TotalItens', 'FamiliaPrincipal']],
-            use_container_width=True
+            use_container_width=True,
+            column_config={
+                "Numero_servico": "OS",
+                "Valor": "Valor Total",
+                "TotalItens": "Itens",
+                "FamiliaPrincipal": "Família Principal"
+            }
         )
 
     else:
         # Mostrar cards
-        st.markdown(f"### {len(os_categorizadas)} máquinas encontradas")
+        st.markdown(f"### 🎯 {len(os_categorizadas)} máquina{'s' if len(os_categorizadas) != 1 else ''} encontrada{'s' if len(os_categorizadas) != 1 else ''}")
+        st.caption("Clique em 'Ver' para análise detalhada ou use os filtros para refinar sua busca")
         st.markdown("---")
 
         # Grid de cards (3 colunas)
@@ -112,7 +140,13 @@ try:
                 'Média': '●●○',
                 'Grande': '●●●'
             }
+            complexidade_labels = {
+                'Pequena': 'Pequeno Porte',
+                'Média': 'Médio Porte',
+                'Grande': 'Grande Porte'
+            }
             icon = complexidade_icons.get(os_cat['complexidade'], '○○○')
+            label_complexidade = complexidade_labels.get(os_cat['complexidade'], os_cat['complexidade'])
 
             # Buscar imagem da máquina
             imagem = get_imagem_principal(os_cat['numero_servico'])
@@ -125,36 +159,39 @@ try:
 
                     st.markdown(f"""
                     <div style="{card_style}">
-                        <h4 style="margin: 0; color: #ffffff;">OS {os_cat['numero_servico']}</h4>
+                        <h4 style="margin: 0; color: #ffffff;">📋 OS {os_cat['numero_servico']}</h4>
                         <p style="margin: 5px 0; font-size: 0.9em; color: #cccccc;">{os_cat['area_atuacao']}</p>
-                        <p style="margin: 5px 0; color: #cc0000;"><strong>{icon}</strong> {os_cat['complexidade']}</p>
-                        <p style="margin: 5px 0; font-size: 1.2em; font-weight: bold; color: #ffffff;">R$ {valor_total:,.0f}</p>
-                        <p style="margin: 0; font-size: 0.8em; color: #888888;">{total_itens} itens</p>
+                        <p style="margin: 5px 0; color: #cc0000;" title="{label_complexidade}"><strong>{icon}</strong> {os_cat['complexidade']}</p>
+                        <p style="margin: 5px 0; font-size: 1.2em; font-weight: bold; color: #ffffff;">💰 R$ {valor_total:,.0f}</p>
+                        <p style="margin: 0; font-size: 0.8em; color: #888888;">📦 {total_itens} itens</p>
                     </div>
                     """.replace(",", "."), unsafe_allow_html=True)
 
                     # Mostrar thumbnail da imagem se existir
                     if imagem:
                         try:
-                            st.image(imagem['caminho_arquivo'], width=150, caption="Foto da máquina")
+                            st.image(imagem['caminho_arquivo'], width=150, caption="📸 Foto da máquina", use_container_width=True)
                         except Exception:
-                            pass
+                            st.caption("⚠️ Erro ao carregar imagem")
 
                     # Botões (Ver e Excluir)
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1:
-                        if st.button("Ver", key=f"ver_{os_cat['numero_servico']}", use_container_width=True):
+                        if st.button("👁️ Ver Detalhes", key=f"ver_{os_cat['numero_servico']}", use_container_width=True, type="primary"):
                             st.session_state.os_detalhada = os_cat['numero_servico']
 
                     with btn_col2:
-                        if st.button("🗑", key=f"del_{os_cat['numero_servico']}", use_container_width=True):
+                        if st.button("🗑️ Remover", key=f"del_{os_cat['numero_servico']}", use_container_width=True):
                             if remover_categoria(os_cat['numero_servico']):
+                                st.success("✅ Removido!")
                                 st.rerun()
 
         # Modal de detalhes (se uma OS foi selecionada para ver)
         if 'os_detalhada' in st.session_state and st.session_state.os_detalhada:
             st.markdown("---")
-            st.subheader(f"Detalhes - OS {st.session_state.os_detalhada}")
+            st.markdown("---")
+            st.subheader(f"🔍 Análise Detalhada - OS {st.session_state.os_detalhada}")
+            st.caption("Informações completas do projeto selecionado")
 
             # Converter para int antes de buscar os detalhes
             try:
@@ -167,21 +204,42 @@ try:
             categoria = get_categoria(str(st.session_state.os_detalhada))
 
             # Métricas
+            st.markdown("### 📊 Resumo Financeiro")
             col1, col2, col3, col4 = st.columns(4)
             with col1:
-                st.metric("Valor Total", f"R$ {os_data['ValorTotalComprado'].sum():,.0f}".replace(",", "."))
+                st.metric(
+                    "Valor Total", 
+                    f"R$ {os_data['ValorTotalComprado'].sum():,.0f}".replace(",", "."),
+                    help="Valor total de compras da OS"
+                )
             with col2:
-                st.metric("Itens", len(os_data))
+                st.metric(
+                    "Total de Itens", 
+                    len(os_data),
+                    help="Quantidade de itens comprados"
+                )
             with col3:
-                st.metric("Área", categoria['area_atuacao'][:15] + "..." if categoria else "-")
+                area_display = categoria['area_atuacao'] if categoria else "-"
+                if len(area_display) > 20:
+                    area_display = area_display[:20] + "..."
+                st.metric(
+                    "Área de Atuação", 
+                    area_display,
+                    help=categoria['area_atuacao'] if categoria else "Não categorizada"
+                )
             with col4:
-                st.metric("Complexidade", categoria['complexidade'] if categoria else "-")
+                st.metric(
+                    "Complexidade", 
+                    categoria['complexidade'] if categoria else "-",
+                    help="Porte do projeto"
+                )
 
             # ============================================================
             # Seção de Imagem da Máquina
             # ============================================================
             st.markdown("---")
-            st.subheader("Foto da Máquina")
+            st.subheader("📸 Foto da Máquina")
+            st.caption("Adicione ou visualize fotos do projeto para referência visual")
 
             imagem_atual = get_imagem_principal(str(st.session_state.os_detalhada))
 
@@ -190,43 +248,59 @@ try:
             with col_img1:
                 if imagem_atual:
                     try:
-                        st.image(imagem_atual['caminho_arquivo'], caption=imagem_atual.get('descricao') or 'Foto da máquina', width=400)
+                        st.image(
+                            imagem_atual['caminho_arquivo'], 
+                            caption=imagem_atual.get('descricao') or '🖼️ Foto da máquina', 
+                            use_container_width=True
+                        )
                     except Exception as e:
-                        st.warning(f"Não foi possível carregar a imagem: {e}")
+                        st.warning(f"⚠️ Não foi possível carregar a imagem: {e}")
+                else:
+                    st.info("📷 Nenhuma foto adicionada ainda. Use o formulário ao lado para fazer upload.")
 
             with col_img2:
                 # Upload de nova imagem
+                st.markdown("**Gerenciar Foto**")
                 uploaded_file = st.file_uploader(
                     "Adicionar/Substituir foto",
                     type=['png', 'jpg', 'jpeg'],
-                    key=f"upload_{st.session_state.os_detalhada}"
+                    key=f"upload_{st.session_state.os_detalhada}",
+                    help="Tamanho máximo: 5MB. Formatos: PNG, JPG, JPEG"
                 )
 
                 if uploaded_file:
                     # Validar tamanho (5MB)
                     if uploaded_file.size > 5 * 1024 * 1024:
-                        st.error("Arquivo muito grande. Máximo: 5MB")
+                        st.error("❌ Arquivo muito grande. Máximo: 5MB")
                     else:
-                        descricao_img = st.text_input("Descrição (opcional)", key="desc_img")
-                        if st.button("Salvar Imagem", type="primary"):
+                        descricao_img = st.text_input(
+                            "Descrição (opcional)", 
+                            key="desc_img",
+                            placeholder="Ex: Vista frontal da máquina"
+                        )
+                        if st.button("💾 Salvar Imagem", type="primary", use_container_width=True):
                             if salvar_imagem_maquina(str(st.session_state.os_detalhada), uploaded_file, descricao_img):
-                                st.success("Imagem salva com sucesso!")
+                                st.success("✅ Imagem salva com sucesso!")
                                 st.rerun()
                             else:
-                                st.error("Erro ao salvar imagem")
+                                st.error("❌ Erro ao salvar imagem")
 
                 # Botão para remover imagem existente
                 if imagem_atual:
-                    if st.button("Remover Imagem", key="remove_img"):
+                    st.markdown("---")
+                    if st.button("🗑️ Remover Imagem", key="remove_img", use_container_width=True):
                         if remover_imagem_maquina(imagem_atual['id']):
-                            st.success("Imagem removida!")
+                            st.success("✅ Imagem removida!")
                             st.rerun()
+                        else:
+                            st.error("❌ Erro ao remover imagem")
 
             # ============================================================
             # Gráfico de Pizza - Famílias > 1%
             # ============================================================
             st.markdown("---")
-            st.subheader("Distribuição por Família (>1%)")
+            st.subheader("📊 Distribuição por Família de Produtos")
+            st.caption("Apenas famílias que representam mais de 1% do valor total")
 
             familia_df = os_details['familia_analysis'].reset_index()
             familia_df.columns = ['Família', 'Valor']
@@ -258,37 +332,75 @@ try:
             # Lista de Itens do Projeto
             # ============================================================
             st.markdown("---")
-            st.subheader("Itens do Projeto")
+            st.subheader("📋 Lista de Itens do Projeto")
+            st.caption("Todos os itens comprados nesta OS, ordenados por valor")
 
             # Preparar tabela de itens
             df_itens = os_data[['Item', 'FAMILIA', 'OrdemCompra', 'Fornecedor', 'QuantidadeComprada', 'ValorTotalComprado']].copy()
             df_itens.columns = ['Item', 'Família', 'OC', 'Fornecedor', 'Qtd', 'Valor']
             df_itens['OC'] = df_itens['OC'].fillna(0).astype(int)
             df_itens = df_itens.sort_values('Valor', ascending=False)
+            
+            # #region agent log
+            import json; open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({"id":"log_A1","timestamp":__import__('time').time()*1000,"location":"2_Catalogo.py:343","message":"df_itens Valor type after creation","data":{"valor_dtype":str(df_itens['Valor'].dtype),"first_valor_type":str(type(df_itens['Valor'].iloc[0])),"first_valor_value":str(df_itens['Valor'].iloc[0]),"has_nan":bool(df_itens['Valor'].isna().any())},"hypothesisId":"A,B"}) + '\n'); open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').close()
+            # #endregion
 
             # Formatar valores
             df_itens_display = df_itens.copy()
             df_itens_display['Valor'] = df_itens_display['Valor'].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+            
+            # #region agent log
+            import json; open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({"id":"log_A2","timestamp":__import__('time').time()*1000,"location":"2_Catalogo.py:349","message":"df_itens_display Valor type after formatting","data":{"valor_dtype":str(df_itens_display['Valor'].dtype),"first_valor_type":str(type(df_itens_display['Valor'].iloc[0])),"first_valor_value":str(df_itens_display['Valor'].iloc[0])},"hypothesisId":"B,D"}) + '\n'); open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').close()
+            # #endregion
 
             st.dataframe(
                 df_itens_display,
                 use_container_width=True,
-                height=300
+                height=400,
+                column_config={
+                    "Item": st.column_config.TextColumn("Item", width="large"),
+                    "Família": st.column_config.TextColumn("Família", width="medium"),
+                    "OC": st.column_config.NumberColumn("OC", width="small"),
+                    "Fornecedor": st.column_config.TextColumn("Fornecedor", width="medium"),
+                    "Qtd": st.column_config.NumberColumn("Qtd", width="small"),
+                    "Valor": st.column_config.TextColumn("Valor", width="small")
+                }
             )
 
-            st.caption(f"Total: {len(df_itens)} itens")
+            # #region agent log
+            import json; open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({"id":"log_B1","timestamp":__import__('time').time()*1000,"location":"2_Catalogo.py:362","message":"Before caption calculation - checking df_itens Valor","data":{"df_itens_valor_dtype":str(df_itens['Valor'].dtype),"df_itens_valor_sample":str(df_itens['Valor'].head(3).tolist())},"hypothesisId":"B"}) + '\n'); open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').close()
+            # #endregion
+            
+            # FIX: Usar df_itens que já tem valores numéricos, em vez de tentar converter strings
+            total_valor = df_itens['Valor'].sum()
+            
+            # #region agent log
+            import json; open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({"id":"log_FIX1","timestamp":__import__('time').time()*1000,"location":"2_Catalogo.py:370","message":"After fix - total calculated","data":{"total_valor":float(total_valor),"total_type":str(type(total_valor))},"runId":"post-fix"}) + '\n'); open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').close()
+            # #endregion
+            
+            st.caption(f"📦 Total: **{len(df_itens)} itens** | 💰 Valor: **R$ {total_valor:,.2f}**".replace(",", "X").replace(".", ",").replace("X", "."))
 
             # Botões de ação
             st.markdown("---")
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("Fechar Detalhes", use_container_width=True):
+                if st.button("◀️ Voltar ao Catálogo", use_container_width=True, type="secondary"):
                     del st.session_state.os_detalhada
                     st.rerun()
             with col2:
-                if st.button("Excluir do Catálogo", type="primary", use_container_width=True):
-                    if remover_categoria(str(st.session_state.os_detalhada)):
-                        del st.session_state.os_detalhada
+                if st.button("🗑️ Remover do Catálogo", type="primary", use_container_width=True):
+                    if st.session_state.get('confirmar_exclusao'):
+                        if remover_categoria(str(st.session_state.os_detalhada)):
+                            st.success("✅ OS removida do catálogo!")
+                            del st.session_state.os_detalhada
+                            if 'confirmar_exclusao' in st.session_state:
+                                del st.session_state.confirmar_exclusao
+                            st.rerun()
+                        else:
+                            st.error("❌ Erro ao remover")
+                    else:
+                        st.session_state.confirmar_exclusao = True
+                        st.warning("⚠️ Clique novamente para confirmar a exclusão")
                         st.rerun()
 
 except FileNotFoundError:

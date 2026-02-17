@@ -20,13 +20,18 @@ from src.utils.export import export_excel_resumo, export_excel_detalhado, export
 # Caminho dos dados
 DATA_PATH = ROOT_DIR / "data" / "processed" / "cmv_data.csv"
 
+st.set_page_config(
+    page_title="Categorização | CMV Hub",
+    page_icon="📊",
+    layout="wide"
+)
+
 # Inicializar banco
 init_db()
 
-st.title("Consultar OS")
-st.markdown("Selecione uma OS para visualizar custos detalhados")
-
-# Carregar dados
+st.title("📊 Categorização de OS")
+st.markdown("**Consulte projetos, analise custos e categorize soluções**")
+st.caption("Busque OSs similares ao seu novo projeto para usar como referência de orçamento")
 @st.cache_data
 def carregar_dados():
     return load_data(str(DATA_PATH))
@@ -42,15 +47,19 @@ try:
     # ============================================================
     # 1. HEADER: Seletor de OS (com opção "Todos os Projetos")
     # ============================================================
+    st.markdown("---")
+    st.subheader("🔍 Seleção de Projeto")
+    
     lista_os = os_summary['Numero_servico'].tolist()
     opcoes_os = ['Todos os Projetos'] + lista_os
 
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
         selected_os = st.selectbox(
-            "Selecione a OS",
+            "Selecione a Ordem de Serviço (OS)",
             options=opcoes_os,
-            format_func=lambda x: x if x == 'Todos os Projetos' else f"OS {x} - R$ {os_summary[os_summary['Numero_servico']==x]['ValorTotal'].values[0]:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            format_func=lambda x: x if x == 'Todos os Projetos' else f"OS {x} - R$ {os_summary[os_summary['Numero_servico']==x]['ValorTotal'].values[0]:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+            help="Escolha uma OS específica para análise detalhada ou 'Todos os Projetos' para explorar toda a base"
         )
 
     # Verificar se é "Todos os Projetos" ou uma OS específica
@@ -63,11 +72,15 @@ try:
 
     with col2:
         if is_todos_projetos:
-            st.info("Análise exploratória")
+            st.info("💡 Modo exploração")
         elif categoria_atual:
-            st.success(f"{categoria_atual['area_atuacao'][:15]}... | {categoria_atual['complexidade']}")
+            st.success(f"✅ {categoria_atual['area_atuacao'][:18]}...")
         else:
-            st.warning("Não categorizada")
+            st.warning("⚠️ Não categorizada")
+    
+    with col3:
+        if not is_todos_projetos and categoria_atual:
+            st.metric("Complexidade", categoria_atual['complexidade'])
 
     # Determinar dados a usar
     if is_todos_projetos:
@@ -82,30 +95,53 @@ try:
     # 2. SUBHEADER: Métricas de Resumo
     # ============================================================
     st.markdown("---")
+    st.subheader("📈 Resumo Financeiro")
     col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
-        st.metric("Valor Total", f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
+        st.metric(
+            "Valor Total", 
+            f"R$ {valor_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."),
+            help="Soma de todos os valores de compra dos itens"
+        )
     with col2:
-        st.metric("Total de Itens", f"{len(os_data):,}")
+        st.metric(
+            "Total de Itens", 
+            f"{len(os_data):,}".replace(",", "."),
+            help="Quantidade de linhas de itens comprados"
+        )
     with col3:
-        st.metric("Fornecedores", f"{os_data['Fornecedor'].nunique()}")
+        st.metric(
+            "Fornecedores", 
+            f"{os_data['Fornecedor'].nunique()}",
+            help="Número de fornecedores diferentes utilizados"
+        )
     with col4:
-        st.metric("Famílias", f"{os_data['FAMILIA'].nunique()}")
+        st.metric(
+            "Famílias", 
+            f"{os_data['FAMILIA'].nunique()}",
+            help="Número de famílias de produtos diferentes (ex: Pneumática, Sensores)"
+        )
     with col5:
-        st.metric("OCs", f"{os_data['OrdemCompra'].nunique()}")
+        st.metric(
+            "Ordens de Compra", 
+            f"{os_data['OrdemCompra'].nunique()}",
+            help="Número de OCs (Ordens de Compra) utilizadas no projeto"
+        )
 
     # ============================================================
     # 3. FILTROS: Busca de Item + OC + Família + Grupo + Fornecedor
     # ============================================================
     st.markdown("---")
-    st.subheader("Filtros")
+    st.subheader("🔎 Filtros de Busca")
+    st.caption("Use os filtros para encontrar componentes específicos ou analisar custos por categoria")
 
     # Linha 1: Busca de Item
     busca_item = st.text_input(
-        "Buscar Item",
-        placeholder="Digite para buscar um item específico...",
-        key="busca_item"
+        "🔍 Buscar por nome do item",
+        placeholder="Ex: sensor, válvula, motor, cabo...",
+        key="busca_item",
+        help="Digite qualquer palavra que apareça no nome do item"
     )
 
     # Linha 2: Filtros por seleção
@@ -113,22 +149,42 @@ try:
 
     with col1:
         ordens_compra = ['Todas'] + sorted([str(int(x)) for x in os_data['OrdemCompra'].dropna().unique()])
-        filtro_oc = st.selectbox("Filtrar por OC", ordens_compra, key="filtro_oc")
+        filtro_oc = st.selectbox(
+            "📋 Ordem de Compra (OC)", 
+            ordens_compra, 
+            key="filtro_oc",
+            help="Filtre itens de uma OC específica"
+        )
 
     with col2:
         familias = ['Todas'] + sorted(os_data['FAMILIA'].dropna().unique().tolist())
-        filtro_familia = st.selectbox("Filtrar por Família", familias, key="filtro_familia")
+        filtro_familia = st.selectbox(
+            "📦 Família de Produtos", 
+            familias, 
+            key="filtro_familia",
+            help="Ex: Pneumática, Sensores, Material Elétrico"
+        )
 
     with col3:
         if filtro_familia != 'Todas':
             grupos = ['Todos'] + sorted(os_data[os_data['FAMILIA'] == filtro_familia]['GRUPO'].dropna().unique().tolist())
         else:
             grupos = ['Todos'] + sorted(os_data['GRUPO'].dropna().unique().tolist())
-        filtro_grupo = st.selectbox("Filtrar por Grupo", grupos, key="filtro_grupo")
+        filtro_grupo = st.selectbox(
+            "🏷️ Grupo (Subcategoria)", 
+            grupos, 
+            key="filtro_grupo",
+            help="Subcategoria dentro da família selecionada"
+        )
 
     with col4:
         fornecedores = ['Todos'] + sorted(os_data['Fornecedor'].dropna().unique().tolist())
-        filtro_fornecedor = st.selectbox("Filtrar por Fornecedor", fornecedores, key="filtro_fornecedor")
+        filtro_fornecedor = st.selectbox(
+            "🏭 Fornecedor", 
+            fornecedores, 
+            key="filtro_fornecedor",
+            help="Filtre itens de um fornecedor específico"
+        )
 
     # Aplicar filtros
     df_filtrado = os_data.copy()
@@ -152,7 +208,7 @@ try:
     # 4. TABELA: Detalhamento de Itens (com coluna OC)
     # ============================================================
     st.markdown("---")
-    st.subheader("Detalhamento de Itens")
+    st.subheader("📋 Detalhamento de Itens")
 
     # Exibir tabela
     df_display = df_filtrado[['Item', 'FAMILIA', 'GRUPO', 'OrdemCompra', 'Fornecedor', 'QuantidadeComprada', 'ValorTotalComprado']].copy()
@@ -167,19 +223,35 @@ try:
     st.dataframe(
         df_display_formatted,
         use_container_width=True,
-        height=600
+        height=600,
+        column_config={
+            "Item": st.column_config.TextColumn("Item", help="Descrição do produto/serviço", width="large"),
+            "Família": st.column_config.TextColumn("Família", help="Categoria principal", width="medium"),
+            "Grupo": st.column_config.TextColumn("Grupo", help="Subcategoria", width="medium"),
+            "OC": st.column_config.NumberColumn("OC", help="Ordem de Compra", width="small"),
+            "Fornecedor": st.column_config.TextColumn("Fornecedor", width="medium"),
+            "Qtd": st.column_config.NumberColumn("Qtd", help="Quantidade comprada", width="small"),
+            "Valor": st.column_config.TextColumn("Valor", help="Valor total do item", width="small")
+        }
     )
 
     # Total filtrado
     total_filtrado = df_filtrado['ValorTotalComprado'].sum()
-    st.info(f"**Total filtrado:** R$ {total_filtrado:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + f" ({len(df_filtrado)} itens)")
+    percentual_filtrado = (total_filtrado / valor_total * 100) if valor_total > 0 else 0
+    
+    col_info1, col_info2 = st.columns(2)
+    with col_info1:
+        st.info(f"**💰 Total filtrado:** R$ {total_filtrado:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") + f" ({len(df_filtrado)} itens)")
+    with col_info2:
+        st.info(f"**📊 Representatividade:** {percentual_filtrado:.1f}% do valor total do projeto".replace(".", ","))
 
     # ============================================================
     # 5. GRÁFICO: Barras VERTICAIS (apenas para OS específica)
     # ============================================================
     if not is_todos_projetos:
         st.markdown("---")
-        st.subheader("Custo por Família (>1%)")
+        st.subheader("📊 Distribuição de Custos por Família")
+        st.caption("Visualize onde está concentrado o maior custo do projeto")
 
         familia_df = os_details['familia_analysis'].reset_index()
         familia_df.columns = ['Família', 'Valor']
@@ -218,7 +290,8 @@ try:
     # 6. EXPORTS: Dados do projeto + Tabela filtrada
     # ============================================================
     st.markdown("---")
-    st.subheader("Exportar Dados")
+    st.subheader("📥 Exportar Dados")
+    st.caption("Gere relatórios Excel para usar como referência em novos orçamentos")
 
     if is_todos_projetos:
         # Apenas export da tabela filtrada quando é "Todos os Projetos"
@@ -264,35 +337,40 @@ try:
     # ============================================================
     if not is_todos_projetos:
         st.markdown("---")
-        with st.expander("Categorizar esta OS", expanded=not categoria_atual):
+        with st.expander("🏷️ Categorizar esta OS", expanded=not categoria_atual):
+            st.caption("Categorize este projeto para facilitar buscas futuras e formar seu catálogo de soluções")
+            
             col1, col2 = st.columns(2)
 
             with col1:
                 area_selecionada = st.selectbox(
-                    "Área de Atuação",
+                    "Área de Atuação / Tipo de Solução",
                     options=AREAS_ATUACAO,
-                    index=AREAS_ATUACAO.index(categoria_atual['area_atuacao']) if categoria_atual else 0
+                    index=AREAS_ATUACAO.index(categoria_atual['area_atuacao']) if categoria_atual else 0,
+                    help="Selecione o tipo de solução que melhor descreve este projeto"
                 )
 
             with col2:
                 complexidade_selecionada = st.selectbox(
-                    "Complexidade",
+                    "Complexidade / Porte do Projeto",
                     options=COMPLEXIDADES,
-                    index=COMPLEXIDADES.index(categoria_atual['complexidade']) if categoria_atual else 1
+                    index=COMPLEXIDADES.index(categoria_atual['complexidade']) if categoria_atual else 1,
+                    help="Pequena: até R$50k | Média: R$50k-200k | Grande: acima de R$200k"
                 )
 
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("Salvar Categorização", type="primary", use_container_width=True):
+                if st.button("💾 Salvar Categorização", type="primary", use_container_width=True):
                     if categorizar_os(str(selected_os), area_selecionada, complexidade_selecionada):
-                        st.success("Categorização salva com sucesso!")
+                        st.success("✅ Categorização salva com sucesso!")
+                        st.balloons()
                         st.rerun()
                     else:
-                        st.error("Erro ao salvar categorização")
+                        st.error("❌ Erro ao salvar categorização")
 
             with col2:
                 if categoria_atual:
-                    st.caption(f"Última atualização: {categoria_atual.get('data_categorizacao', '-')}")
+                    st.caption(f"📅 Última atualização: {categoria_atual.get('data_categorizacao', '-')}")
 
 except FileNotFoundError:
     st.error(f"Arquivo de dados não encontrado em: {DATA_PATH}")

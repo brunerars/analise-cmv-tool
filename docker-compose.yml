@@ -1,0 +1,80 @@
+version: "3.8"
+
+services:
+  analise_cmv:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: analise-cmv:latest
+
+    networks:
+      - network_public
+
+    volumes:
+      # Volume para persistência de dados
+      # Este volume armazena:
+      # - /app/data/processed/cmv_data.csv (Base de dados principal - 3.8MB)
+      # - /app/data/cmv_catalog.db (Banco SQLite com categorizações)
+      # - /app/data/images/ (Fotos das máquinas enviadas pelos usuários)
+      - data_cmv_analise:/app/data
+
+    deploy:
+      mode: replicated
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 120s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      labels:
+        # Traefik - Habilitar roteamento
+        - traefik.enable=true
+        
+        # Router HTTP (redirecionar para HTTPS)
+        - traefik.http.routers.analise_cmv_http.rule=Host(`analise-cmv.arvsystems.cloud`)
+        - traefik.http.routers.analise_cmv_http.entrypoints=web
+        - traefik.http.routers.analise_cmv_http.middlewares=redirect-to-https
+        
+        # Router HTTPS
+        - traefik.http.routers.analise_cmv.rule=Host(`analise-cmv.arvsystems.cloud`)
+        - traefik.http.routers.analise_cmv.entrypoints=websecure
+        - traefik.http.routers.analise_cmv.tls=true
+        - traefik.http.routers.analise_cmv.tls.certresolver=letsencryptresolver
+        
+        # Service (porta do container)
+        - traefik.http.services.analise_cmv.loadbalancer.server.port=8501
+        - traefik.http.routers.analise_cmv.service=analise_cmv
+        
+        # Middleware para redirecionar HTTP -> HTTPS
+        - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+        - traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true
+
+volumes:
+  data_cmv_analise:
+    external: true
+    # IMPORTANTE: Este volume deve ser criado antes do deploy
+    # Comando: docker volume create data_cmv_analise
+    # 
+    # Estrutura esperada dentro do volume:
+    # /app/data/
+    # ├── processed/
+    # │   └── cmv_data.csv          (obrigatório - copiar antes do primeiro deploy)
+    # ├── cmv_catalog.db            (criado automaticamente pela aplicação)
+    # └── images/                   (criado automaticamente pela aplicação)
+    #
+    # O banco SQLite (cmv_catalog.db) armazena:
+    # - Categorizações de OS (área de atuação, complexidade)
+    # - Metadados de imagens das máquinas
+    # 
+    # Persistência garantida mesmo após:
+    # - Restart do container
+    # - Atualização da aplicação
+    # - Redeploy da stack
+
+networks:
+  network_public:
+    external: true

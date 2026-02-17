@@ -19,7 +19,11 @@ xlsxwriter>=3.1.0
 # Utilitários
 python-dateutil>=2.8.2
 
+# Para healthcheck Docker
+requests>=2.31.0
+
 # Para futuras integrações (comentado por enquanto)
 # fastapi>=0.104.0
 # uvicorn>=0.24.0
 # fpdf2>=2.7.0  # Para export PDF
+
