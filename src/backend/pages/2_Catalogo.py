@@ -9,7 +9,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-from src.utils.data_processing import load_data
+from src.utils.data_processing import load_data, get_data_path
 from src.utils.analysis import analyze_os, get_os_details
 from src.utils.database import (
     init_db, listar_categorizadas, get_categoria,
@@ -17,8 +17,8 @@ from src.utils.database import (
     salvar_imagem_maquina, get_imagem_principal, remover_imagem_maquina
 )
 
-# Caminho dos dados
-DATA_PATH = ROOT_DIR / "data" / "processed" / "cmv_data.csv"
+# Caminho dos dados (funciona em Docker e localmente)
+DATA_PATH = get_data_path() / "processed" / "cmv_data.csv"
 
 # Inicializar banco
 init_db()
@@ -340,18 +340,10 @@ try:
             df_itens.columns = ['Item', 'Família', 'OC', 'Fornecedor', 'Qtd', 'Valor']
             df_itens['OC'] = df_itens['OC'].fillna(0).astype(int)
             df_itens = df_itens.sort_values('Valor', ascending=False)
-            
-            # #region agent log
-            import json; open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({"id":"log_A1","timestamp":__import__('time').time()*1000,"location":"2_Catalogo.py:343","message":"df_itens Valor type after creation","data":{"valor_dtype":str(df_itens['Valor'].dtype),"first_valor_type":str(type(df_itens['Valor'].iloc[0])),"first_valor_value":str(df_itens['Valor'].iloc[0]),"has_nan":bool(df_itens['Valor'].isna().any())},"hypothesisId":"A,B"}) + '\n'); open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').close()
-            # #endregion
 
             # Formatar valores
             df_itens_display = df_itens.copy()
             df_itens_display['Valor'] = df_itens_display['Valor'].apply(lambda x: f"R$ {x:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-            
-            # #region agent log
-            import json; open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({"id":"log_A2","timestamp":__import__('time').time()*1000,"location":"2_Catalogo.py:349","message":"df_itens_display Valor type after formatting","data":{"valor_dtype":str(df_itens_display['Valor'].dtype),"first_valor_type":str(type(df_itens_display['Valor'].iloc[0])),"first_valor_value":str(df_itens_display['Valor'].iloc[0])},"hypothesisId":"B,D"}) + '\n'); open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').close()
-            # #endregion
 
             st.dataframe(
                 df_itens_display,
@@ -367,17 +359,8 @@ try:
                 }
             )
 
-            # #region agent log
-            import json; open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({"id":"log_B1","timestamp":__import__('time').time()*1000,"location":"2_Catalogo.py:362","message":"Before caption calculation - checking df_itens Valor","data":{"df_itens_valor_dtype":str(df_itens['Valor'].dtype),"df_itens_valor_sample":str(df_itens['Valor'].head(3).tolist())},"hypothesisId":"B"}) + '\n'); open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').close()
-            # #endregion
-            
-            # FIX: Usar df_itens que já tem valores numéricos, em vez de tentar converter strings
+            # Calcular total diretamente dos valores numéricos
             total_valor = df_itens['Valor'].sum()
-            
-            # #region agent log
-            import json; open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').write(json.dumps({"id":"log_FIX1","timestamp":__import__('time').time()*1000,"location":"2_Catalogo.py:370","message":"After fix - total calculated","data":{"total_valor":float(total_valor),"total_type":str(type(total_valor))},"runId":"post-fix"}) + '\n'); open(r'c:\Users\Bruno\Desktop\DEPLOY-CMV\analise-cmv-tool\.cursor\debug.log', 'a', encoding='utf-8').close()
-            # #endregion
-            
             st.caption(f"📦 Total: **{len(df_itens)} itens** | 💰 Valor: **R$ {total_valor:,.2f}**".replace(",", "X").replace(".", ",").replace("X", "."))
 
             # Botões de ação

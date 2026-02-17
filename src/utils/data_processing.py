@@ -1,4 +1,27 @@
 import pandas as pd
+import os
+from pathlib import Path
+
+
+def get_data_path() -> Path:
+    """
+    Retorna o caminho correto para os dados, considerando ambiente Docker ou local.
+    
+    - No Docker: /app/data (volume montado)
+    - Local: <ROOT_DIR>/data (calculado a partir do arquivo)
+    
+    Returns:
+        Path para o diretório data/
+    """
+    # Verificar se está rodando no Docker (verifica se /app existe e está em /app)
+    if os.path.exists('/app') and str(Path(__file__).resolve()).startswith('/app'):
+        # Ambiente Docker
+        return Path('/app/data')
+    else:
+        # Ambiente local - calcular ROOT_DIR a partir deste arquivo
+        # data_processing.py está em: src/utils/
+        # ROOT_DIR é 2 níveis acima: src/utils/ -> src/ -> ROOT_DIR/
+        return Path(__file__).resolve().parent.parent.parent / 'data'
 
 
 def load_data(csv_path: str) -> pd.DataFrame:

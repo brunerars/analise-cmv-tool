@@ -8,12 +8,12 @@ sys.path.insert(0, str(ROOT_DIR))
 import streamlit as st
 import pandas as pd
 
-from src.utils.data_processing import load_data
+from src.utils.data_processing import load_data, get_data_path
 from src.utils.analysis import analyze_os
 from src.utils.database import init_db, listar_categorizadas
 
-# Caminho dos dados
-DATA_PATH = ROOT_DIR / "data" / "processed" / "cmv_data.csv"
+# Caminho dos dados (funciona em Docker e localmente)
+DATA_PATH = get_data_path() / "processed" / "cmv_data.csv"
 
 # Inicializar banco de dados
 init_db()

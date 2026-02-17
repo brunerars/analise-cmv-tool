@@ -4,6 +4,35 @@ Registro de todas as mudanças significativas no projeto.
 
 ---
 
+## [2.0.1] - 2026-02-17
+
+### 🐛 Correções de Bugs
+
+#### Fix: AttributeError em 2_Catalogo.py
+- **Problema**: `AttributeError: 'float' object has no attribute 'replace'` na linha 362
+- **Causa**: Código tentava aplicar `.replace()` (método de string) em valores float da coluna `df_itens['Valor']`
+- **Solução**: Usar `df_itens['Valor'].sum()` diretamente, já que a coluna já contém valores numéricos
+- **Arquivo modificado**: `src/backend/pages/2_Catalogo.py`
+
+#### Fix: Path de dados para Docker
+- **Problema**: Aplicação não encontrava `cmv_data.csv` quando rodando no Docker
+- **Causa**: Paths calculados relativamente ao arquivo Python não funcionavam com volume montado em `/app/data`
+- **Solução**: Criada função `get_data_path()` que detecta automaticamente se está no Docker ou ambiente local
+- **Arquivos modificados**:
+  - `src/utils/data_processing.py` - Adicionada função `get_data_path()`
+  - `src/utils/database.py` - Adicionada função `get_data_dir()`
+  - `src/backend/app.py` - Usar `get_data_path()`
+  - `src/backend/pages/1_Categorizacao.py` - Usar `get_data_path()`
+  - `src/backend/pages/2_Catalogo.py` - Usar `get_data_path()`
+
+### 📝 Melhorias de Documentação
+- **Adicionado** `PERSISTENCIA_DADOS.md` - Documentação completa sobre persistência de dados
+- **Atualizado** `README.md` - Seção sobre persistência e estrutura de dados
+- **Atualizado** `docker-compose.yml` - Comentários detalhados sobre volumes e persistência
+- **Atualizado** `Dockerfile` - Comentários sobre estrutura de dados
+
+---
+
 ## [2.0.0] - 2026-02-17
 
 ### ✨ Melhorias de UX/Navegabilidade
