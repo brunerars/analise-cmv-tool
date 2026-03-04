@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: analise-cmv:latest
+    image: ghcr.io/brunerars/analise-cmv-tool:latest
 
     networks:
       - network_public

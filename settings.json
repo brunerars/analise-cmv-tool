@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(npm run *)",
+      "Bash(pytest *)",
+      "Bash(docker compose *)",
+      "Bash(pip install *)",
+      "Bash(gh pr *)",
+      "Bash(cat *)",
+      "Bash(ls *)",
+      "Bash(find *)",
+      "Bash(grep *)"
+    ]
+  }
+}
