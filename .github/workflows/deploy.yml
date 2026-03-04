@@ -95,7 +95,7 @@ jobs:
 
             IMAGE="${{ env.IMAGE }}"
             # Nome do serviço no Swarm — confirmar com: docker service ls
-            SERVICE_NAME="analise-cmv-tool_analise_cmv"
+            SERVICE_NAME="analise-cmv_analise_cmv"
 
             echo "Autenticando no ghcr.io..."
             echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
