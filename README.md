@@ -41,23 +41,378 @@ Sistema de análise de Custo de Mercadoria Vendida (CMV) para mapear custos por 
 
 ---
 
+## 🚀 Como Executar
 
+### Desenvolvimento Local
 
-#### Instalação
-
+#### Opção 1 - Script (Windows):
 ```bash
-# 1. Instalar dependências
-pip install streamlit pandas plotly openpyxl
+run.bat
+```
 
-# 2. Colocar os arquivos na mesma pasta
-- dashboard_cmv_streamlit.py
-- cmv_data.csv
+#### Opção 2 - Comando direto:
+```bash
+streamlit run src/backend/app.py
+```
 
-# 3. Executar o dashboard
-streamlit run dashboard_cmv_streamlit.py
+#### Instalação de Dependências:
+```bash
+pip install -r requirements.txt
 ```
 
 O dashboard abrirá automaticamente no navegador em `http://localhost:8501`
+
+---
+
+## 🐳 Deploy com Docker
+
+### Pré-requisitos no Servidor
+
+1. **Docker** e **Docker Compose** instalados
+2. **Docker Swarm** inicializado
+3. **Traefik** configurado como reverse proxy
+4. **Network externa** `network_public` criada
+5. **DNS** apontando `analise-cmv.arvsystems.cloud` para o servidor
+
+### 1. Preparar o Volume de Dados
+
+Antes do primeiro deploy, crie o volume Docker e popule com os dados:
+
+```bash
+# Criar volume externo
+docker volume create data_cmv_analise
+
+# Popular o volume com dados iniciais
+# Método 1: Via container temporário (recomendado)
+docker run --rm \
+  -v data_cmv_analise:/data \
+  -v $(pwd)/data:/source \
+  alpine cp -r /source/* /data/
+
+# Método 2: Copiar manualmente após primeiro deploy
+# (ver seção "Manutenção de Dados" abaixo)
+```
+
+### 2. Build da Imagem
+
+**Método 1 - GitOps (Recomendado)**:
+
+```bash
+# No servidor, clonar/atualizar o repositório
+cd /caminho/do/projeto
+git pull
+
+# Build da imagem
+docker build -t analise-cmv:latest .
+```
+
+**Método 2 - SSH + /tmp**:
+
+```bash
+# Clonar no /tmp do servidor via SSH
+ssh usuario@servidor "cd /tmp && git clone https://github.com/seu-repo/analise-cmv-tool.git"
+
+# Build
+ssh usuario@servidor "cd /tmp/analise-cmv-tool && docker build -t analise-cmv:latest ."
+```
+
+### 3. Deploy no Docker Swarm
+
+```bash
+# Deploy da stack
+docker stack deploy -c docker-compose.yml analise-cmv
+
+# Verificar status
+docker stack ps analise-cmv
+
+# Ver logs
+docker service logs -f analise-cmv_analise_cmv
+```
+
+### 4. Verificações Pós-Deploy
+
+```bash
+# 1. Verificar se o serviço está rodando
+docker service ls
+
+# 2. Verificar healthcheck
+docker service ps analise-cmv_analise_cmv
+
+# 3. Testar acesso local
+curl http://localhost:8501/_stcore/health
+
+# 4. Verificar logs
+docker service logs --tail 50 analise-cmv_analise_cmv
+
+# 5. Testar acesso via domínio
+curl -I https://analise-cmv.arvsystems.cloud
+```
+
+### 5. Atualização da Aplicação
+
+```bash
+# 1. Atualizar código
+git pull
+
+# 2. Rebuild da imagem
+docker build -t analise-cmv:latest .
+
+# 3. Atualizar serviço (rolling update)
+docker service update --image analise-cmv:latest analise-cmv_analise_cmv
+
+# Ou redeploy completo
+docker stack deploy -c docker-compose.yml analise-cmv
+```
+
+---
+
+## 📁 Estrutura do Projeto
+
+```
+analise-cmv-tool/
+├── .streamlit/
+│   ├── config.toml              # Configurações do Streamlit (tema, cores)
+│   └── pages.toml               # Configuração de navegação
+├── data/                        # ⚠️ PERSISTIDO NO VOLUME DOCKER
+│   ├── processed/
+│   │   └── cmv_data.csv         # Base de dados principal (3.8MB)
+│   ├── images/                  # Fotos das máquinas (upload usuário)
+│   └── cmv_catalog.db           # ⚠️ Banco SQLite de categorizações
+├── src/
+│   ├── backend/
+│   │   ├── app.py               # Página inicial
+│   │   └── pages/
+│   │       ├── 1_Categorizacao.py  # Consulta e categorização
+│   │       └── 2_Catalogo.py       # Catálogo de máquinas
+│   └── utils/
+│       ├── data_processing.py   # Funções de carga de dados
+│       ├── analysis.py          # Funções de análise
+│       ├── database.py          # Operações de banco de dados
+│       └── export.py            # Exportação para Excel
+├── docs/
+│   └── CLAUDE.md                # Documentação técnica
+├── tests/
+├── Dockerfile                   # Build da imagem Docker
+├── docker-compose.yml           # Deploy no Swarm + Traefik
+├── .dockerignore                # Exclusões do build
+├── .env.example                 # Template de variáveis de ambiente
+├── .gitignore                   # Proteção de dados sensíveis
+├── deploy.sh                    # Script automatizado de deploy
+├── requirements.txt             # Dependências Python
+├── run.bat                      # Script de execução Windows
+├── PERSISTENCIA_DADOS.md        # ⚠️ Documentação sobre persistência
+├── DEPLOY_CHECKLIST.md          # Checklist de deploy
+├── QUICKSTART.md                # Guia rápido
+├── CHANGELOG.md                 # Registro de mudanças
+└── README.md                    # Este arquivo
+```
+
+### ⚠️ Persistência de Dados
+
+O sistema utiliza:
+- **CSV** (`cmv_data.csv`): Base principal de dados (somente leitura)
+- **SQLite** (`cmv_catalog.db`): Armazena categorizações feitas pelos usuários
+- **Imagens**: Fotos das máquinas enviadas via upload
+
+**Todos os dados são persistidos no volume Docker** `data_cmv_analise`.
+
+📖 **Leia mais**: [PERSISTENCIA_DADOS.md](PERSISTENCIA_DADOS.md) para detalhes completos
+
+---
+
+## 🔧 Manutenção de Dados
+
+### Atualizar CSV de Dados
+
+```bash
+# Método 1: Via container temporário
+docker run --rm \
+  -v data_cmv_analise:/data \
+  -v $(pwd):/source \
+  alpine cp /source/cmv_data.csv /data/processed/
+
+# Método 2: Via container em execução
+docker exec analise-cmv.1.xxxx \
+  cp /tmp/novo_cmv_data.csv /app/data/processed/cmv_data.csv
+
+# Reiniciar para recarregar cache
+docker service update --force analise-cmv_analise_cmv
+```
+
+### Backup do Volume
+
+```bash
+# Backup completo do volume (dados + banco + imagens)
+docker run --rm \
+  -v data_cmv_analise:/data \
+  -v $(pwd)/backup:/backup \
+  alpine tar czf /backup/cmv_backup_$(date +%Y%m%d).tar.gz -C /data .
+
+# Listar backups
+ls -lh backup/
+
+# Restaurar backup
+docker run --rm \
+  -v data_cmv_analise:/data \
+  -v $(pwd)/backup:/backup \
+  alpine tar xzf /backup/cmv_backup_YYYYMMDD.tar.gz -C /data
+```
+
+### Backup do Banco SQLite
+
+```bash
+# Backup apenas do banco de categorizações
+docker run --rm \
+  -v data_cmv_analise:/data \
+  -v $(pwd):/backup \
+  alpine cp /data/cmv_catalog.db /backup/cmv_catalog_backup_$(date +%Y%m%d).db
+```
+
+---
+
+## 📋 Funcionalidades Principais
+
+### 1. Página Inicial (Dashboard)
+- **Métricas gerais**: Total de OSs, OSs categorizadas, valor total
+- **Indicadores visuais**: Progresso de categorização
+- **Navegação**: Cards com descrição das funcionalidades
+- **Informações contextuais**: Dicas de uso e fluxo de trabalho
+
+### 2. Categorização de OS
+- **Busca e seleção**: Escolha uma OS específica ou explore toda a base
+- **Filtros avançados**: Por item, OC, família, grupo, fornecedor
+- **Análise detalhada**: Métricas financeiras, gráficos de distribuição
+- **Categorização**: Atribua área de atuação e complexidade
+- **Exportação**: Gere relatórios Excel (resumo, detalhado, filtrado)
+
+### 3. Catálogo de Máquinas
+- **Galeria visual**: Cards com fotos e informações principais
+- **Filtros**: Por área de atuação e complexidade
+- **Detalhamento**: Modal com análise completa do projeto
+- **Gestão de fotos**: Upload, visualização e remoção de imagens
+- **Estatísticas**: Contadores por categoria
+
+---
+
+## 💡 Casos de Uso
+
+### Para Orçamentistas
+1. **Buscar projetos similares** ao novo orçamento
+2. **Filtrar por família** para encontrar componentes específicos
+3. **Exportar listas** de itens para usar como base
+4. **Comparar custos** entre projetos semelhantes
+
+### Para Gestores
+1. **Visualizar distribuição** de custos por tipo de solução
+2. **Identificar padrões** de composição de projetos
+3. **Analisar fornecedores** mais utilizados
+4. **Acompanhar progresso** de categorização
+
+### Para Time Técnico
+1. **Categorizar projetos** por área e complexidade
+2. **Documentar soluções** com fotos e descrições
+3. **Criar referências** para novos orçamentos
+4. **Padronizar nomenclaturas** e famílias
+
+---
+
+## 🔒 Segurança e Privacidade
+
+- ⚠️ **Dados sensíveis**: Base contém informações comerciais confidenciais da ARV Systems
+- 🔐 **Recomendado**: Não compartilhar fora da organização
+- 📁 **Backup**: Manter cópias seguras dos dados
+- 🔑 **Autenticação**: Considere adicionar autenticação para deploy em produção
+
+---
+
+## 🆘 Troubleshooting
+
+### Problema: Dashboard não carrega dados
+
+**Solução**:
+```bash
+# Verificar se o CSV está no volume
+docker exec analise-cmv.1.xxxx ls -lh /app/data/processed/
+
+# Verificar logs
+docker service logs --tail 100 analise-cmv_analise_cmv
+```
+
+### Problema: Erro ao salvar categorização
+
+**Solução**:
+```bash
+# Verificar permissões do banco
+docker exec analise-cmv.1.xxxx ls -lh /app/data/
+
+# Se necessário, recriar o banco (CUIDADO: apaga categorizações)
+docker exec analise-cmv.1.xxxx rm /app/data/cmv_catalog.db
+docker service update --force analise-cmv_analise_cmv
+```
+
+### Problema: Imagens não aparecem
+
+**Solução**:
+```bash
+# Verificar pasta de imagens
+docker exec analise-cmv.1.xxxx ls -lh /app/data/images/
+
+# Verificar permissões
+docker exec analise-cmv.1.xxxx chmod -R 755 /app/data/images/
+```
+
+### Problema: Container reiniciando continuamente
+
+**Solução**:
+```bash
+# Ver logs detalhados
+docker service logs --tail 200 --follow analise-cmv_analise_cmv
+
+# Verificar healthcheck
+docker inspect $(docker ps -q -f name=analise-cmv)
+
+# Verificar recursos
+docker stats
+```
+
+---
+
+## 📞 Contatos e Responsáveis
+
+- **Product Owner**: Bruno (Head of Industrial Systems)
+- **Stakeholders**: Gestores ARV, Time Técnico, Comercial
+- **Objetivo de Negócio**: Reduzir tempo de orçamento em 50% via catalogação
+
+---
+
+## 📝 Notas Importantes
+
+1. **Dados em Produção**: Base de 24k+ registros reais
+2. **Performance**: Primeira carga pode demorar alguns segundos
+3. **Atualizações**: Substituir CSV no volume para atualizar dados
+4. **Customização**: Código-fonte disponível para modificações
+5. **Escalabilidade**: Considerar otimizações para crescimento da base
+
+---
+
+## 📄 Licença e Uso
+
+Projeto interno da **ARV Systems**. Uso restrito a funcionários autorizados.
+
+**Versão**: 2.0  
+**Última Atualização**: Fevereiro 2026  
+**Desenvolvedor**: Bruno - Head of Industrial Systems | ARV Systems
+
+---
+
+## 🏆 Resultado Esperado
+
+Ao final do processo de catalogação, a ARV Systems terá:
+
+✅ **Catálogo de Soluções**: 5-10 tipos padrão de projeto documentados  
+✅ **Faixas de Preço**: Referências claras para cada tipo de solução  
+✅ **Processo Otimizado**: Orçamentos mais rápidos e precisos  
+✅ **Vantagem Competitiva**: Capacidade de resposta ágil mantendo customização
 
 
 

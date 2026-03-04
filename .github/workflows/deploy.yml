@@ -1,0 +1,121 @@
+name: CI/CD — analise-cmv-tool
+
+on:
+  # IMPORTANTE: push desabilitado intencionalmente.
+  # Habilitar após configurar os secrets VPS_HOST, VPS_USER e VPS_SSH_KEY no GitHub.
+  # Descomentar as 2 linhas abaixo quando pronto:
+  # push:
+  #   branches: [main]
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: "Forçar rebuild da imagem sem cache"
+        required: false
+        default: "false"
+        type: boolean
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/${{ github.repository_owner }}/analise-cmv-tool
+
+concurrency:
+  group: deploy-analise-cmv-tool-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build & Push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: meta
+        run: echo "short_sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: ${{ runner.os }}-buildx-
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          no-cache: ${{ inputs.force_rebuild == 'true' }}
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.meta.outputs.short_sha }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Rotate buildx cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+  deploy:
+    name: Deploy na VPS
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Validar secrets
+        run: |
+          [ -z "${{ secrets.VPS_HOST }}" ] && echo "::error::Secret VPS_HOST não configurado" && exit 1
+          [ -z "${{ secrets.VPS_USER }}" ] && echo "::error::Secret VPS_USER não configurado" && exit 1
+          [ -z "${{ secrets.VPS_SSH_KEY }}" ] && echo "::error::Secret VPS_SSH_KEY não configurado" && exit 1
+          echo "Secrets OK"
+
+      - uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 60s
+          command_timeout: 5m
+          script: |
+            set -e
+
+            IMAGE="${{ env.IMAGE }}"
+            # Nome do serviço no Swarm — confirmar com: docker service ls
+            SERVICE_NAME="analise-cmv-tool_analise_cmv"
+
+            echo "Autenticando no ghcr.io..."
+            echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+            echo "Baixando imagem ${IMAGE}:latest..."
+            docker pull "${IMAGE}:latest"
+
+            echo "Atualizando serviço ${SERVICE_NAME}..."
+            if ! docker service inspect "${SERVICE_NAME}" > /dev/null 2>&1; then
+              echo "::error::Serviço ${SERVICE_NAME} não encontrado. Verifique a stack no Portainer."
+              echo "Serviços disponíveis:"
+              docker service ls
+              exit 1
+            fi
+
+            docker service update \
+              --image "${IMAGE}:latest" \
+              --with-registry-auth \
+              --force \
+              "${SERVICE_NAME}"
+
+            docker image prune -f
+            echo "Deploy concluído com sucesso!"

@@ -1,15 +1,29 @@
 import sqlite3
 import shutil
+import os
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
 
+def get_data_dir() -> Path:
+    """
+    Retorna o diretório de dados, considerando ambiente Docker ou local.
+    
+    - No Docker: /app/data (volume montado)
+    - Local: <ROOT_DIR>/data (calculado a partir do arquivo)
+    """
+    if os.path.exists('/app') and str(Path(__file__).resolve()).startswith('/app'):
+        return Path('/app/data')
+    else:
+        return Path(__file__).resolve().parent.parent.parent / "data"
+
+
 # Caminho do banco de dados
-DB_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "cmv_catalog.db"
+DB_PATH = get_data_dir() / "cmv_catalog.db"
 
 # Caminho para armazenamento de imagens
-IMAGES_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "images"
+IMAGES_PATH = get_data_dir() / "images"
 
 # Áreas de atuação disponíveis
 AREAS_ATUACAO = [
