@@ -87,7 +87,7 @@ try:
     # Cards de navegação
     st.markdown("---")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown("""
@@ -106,6 +106,15 @@ try:
         </div>
         """, unsafe_allow_html=True)
         st.page_link("pages/2_Catalogo.py", label="Abrir Catálogo", icon="📁")
+
+    with col3:
+        st.markdown("""
+        <div class="card">
+            <h3>📅 Anos OC</h3>
+            <p>Associe um ano a cada número de Ordem de Compra para rastreabilidade histórica.</p>
+        </div>
+        """, unsafe_allow_html=True)
+        st.page_link("pages/3_Anos_OC.py", label="Abrir Anos OC", icon="📅")
 
     # Sidebar
     st.sidebar.caption("CMV Hub v2.0 | ARV Systems")

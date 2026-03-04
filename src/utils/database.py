@@ -61,8 +61,60 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS oc_anos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numero_oc INTEGER UNIQUE NOT NULL,
+            ano INTEGER NOT NULL,
+            data_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
+
+
+def salvar_ano_oc(numero_oc: int, ano: int) -> None:
+    """Insere ou atualiza o ano de uma OC."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT OR REPLACE INTO oc_anos (numero_oc, ano) VALUES (?, ?)",
+        (numero_oc, ano)
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_ano_oc(numero_oc: int) -> Optional[int]:
+    """Retorna o ano de uma OC específica, ou None se não cadastrado."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT ano FROM oc_anos WHERE numero_oc = ?", (numero_oc,))
+    row = cursor.fetchone()
+    conn.close()
+    return row[0] if row else None
+
+
+def get_todos_anos_oc() -> dict:
+    """Retorna dict {numero_oc: ano} para todas as OCs cadastradas."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT numero_oc, ano FROM oc_anos ORDER BY numero_oc")
+    rows = cursor.fetchall()
+    conn.close()
+    return {row[0]: row[1] for row in rows}
+
+
+def remover_ano_oc(numero_oc: int) -> bool:
+    """Remove o registro de ano de uma OC. Retorna True se removido."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM oc_anos WHERE numero_oc = ?", (numero_oc,))
+    rows_affected = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return rows_affected > 0
 
 
 def categorizar_os(numero_servico: str, area_atuacao: str, complexidade: str, usuario: str = None) -> bool:

@@ -13,7 +13,7 @@ from src.utils.data_processing import load_data
 from src.utils.analysis import analyze_os, get_os_details
 from src.utils.database import (
     init_db, categorizar_os, get_categoria,
-    AREAS_ATUACAO, COMPLEXIDADES
+    AREAS_ATUACAO, COMPLEXIDADES, get_todos_anos_oc
 )
 from src.utils.export import export_excel_resumo, export_excel_detalhado, export_excel_filtrado
 
@@ -38,6 +38,7 @@ def carregar_resumo_os(df):
 try:
     df = carregar_dados()
     os_summary = carregar_resumo_os(df)
+    anos_oc = get_todos_anos_oc()  # dict {numero_oc: ano} — sem cache, sempre fresco
 
     # ============================================================
     # 1. HEADER: Seletor de OS (com opção "Todos os Projetos")
@@ -109,7 +110,7 @@ try:
     )
 
     # Linha 2: Filtros por seleção
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
         ordens_compra = ['Todas'] + sorted([str(int(x)) for x in os_data['OrdemCompra'].dropna().unique()])
@@ -130,6 +131,12 @@ try:
         fornecedores = ['Todos'] + sorted(os_data['Fornecedor'].dropna().unique().tolist())
         filtro_fornecedor = st.selectbox("Filtrar por Fornecedor", fornecedores, key="filtro_fornecedor")
 
+    with col5:
+        ocs_presentes = set(os_data['OrdemCompra'].dropna().astype(int).unique())
+        anos_presentes = sorted({v for k, v in anos_oc.items() if k in ocs_presentes})
+        opcoes_ano = ['Todos'] + [str(a) for a in anos_presentes]
+        filtro_ano = st.selectbox("Filtrar por Ano", opcoes_ano, key="filtro_ano")
+
     # Aplicar filtros
     df_filtrado = os_data.copy()
 
@@ -148,6 +155,11 @@ try:
     if filtro_fornecedor != 'Todos':
         df_filtrado = df_filtrado[df_filtrado['Fornecedor'] == filtro_fornecedor]
 
+    if filtro_ano != 'Todos':
+        df_filtrado = df_filtrado[
+            df_filtrado['OrdemCompra'].fillna(0).astype(int).map(anos_oc) == int(filtro_ano)
+        ]
+
     # ============================================================
     # 4. TABELA: Detalhamento de Itens (com coluna OC)
     # ============================================================
@@ -158,6 +170,10 @@ try:
     df_display = df_filtrado[['Item', 'FAMILIA', 'GRUPO', 'OrdemCompra', 'Fornecedor', 'QuantidadeComprada', 'ValorTotalComprado']].copy()
     df_display.columns = ['Item', 'Família', 'Grupo', 'OC', 'Fornecedor', 'Qtd', 'Valor']
     df_display['OC'] = df_display['OC'].fillna(0).astype(int)
+    df_display['Ano'] = df_display['OC'].map(anos_oc).apply(
+        lambda x: str(int(x)) if pd.notna(x) else '-'
+    )
+    df_display = df_display[['Item', 'Família', 'Grupo', 'OC', 'Ano', 'Fornecedor', 'Qtd', 'Valor']]
     df_display = df_display.sort_values('Valor', ascending=False)
 
     # Formatar valores para exibição
