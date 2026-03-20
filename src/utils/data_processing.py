@@ -33,7 +33,10 @@ def load_data(csv_path: str) -> pd.DataFrame:
     Returns:
         DataFrame com dados processados
     """
-    df = pd.read_csv(csv_path)
+    try:
+        df = pd.read_csv(csv_path, encoding='utf-8')
+    except UnicodeDecodeError:
+        df = pd.read_csv(csv_path, encoding='latin-1')
     df['ValorTotalComprado'] = pd.to_numeric(df['ValorTotalComprado'], errors='coerce').fillna(0)
     df['QuantidadeComprada'] = pd.to_numeric(df['QuantidadeComprada'], errors='coerce').fillna(0)
     df['Numero_servico'] = pd.to_numeric(df['Numero_servico'], errors='coerce').fillna(0).astype(int)
