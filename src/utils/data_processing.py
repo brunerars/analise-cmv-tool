@@ -1,4 +1,4 @@
-import csv
+import io
 import pandas as pd
 import os
 from pathlib import Path
@@ -34,23 +34,23 @@ def load_data(csv_path: str) -> pd.DataFrame:
     Returns:
         DataFrame com dados processados
     """
-    # Detectar encoding (UTF-8 ou Latin-1) e delimitador (, ou ;)
+    # Ler arquivo bruto, detectar encoding e limpar bytes NULL (0x00)
+    # O ERP injeta NULL bytes dentro de campos RTF multiline
     for enc in ('utf-8', 'latin-1'):
         try:
-            with open(csv_path, 'r', encoding=enc) as f:
-                first_line = f.readline()
+            with open(csv_path, 'r', encoding=enc, errors='replace') as f:
+                raw = f.read()
             break
         except UnicodeDecodeError:
             continue
 
-    # Detectar delimitador pelo header (mais confiável que Sniffer com dados RTF)
-    delimiter = ';' if first_line.count(';') > first_line.count(',') else ','
+    clean = raw.replace('\x00', '')
 
-    if delimiter == ';':
-        # CSV brasileiro: ; como delimitador, , como decimal
-        df = pd.read_csv(csv_path, encoding=enc, delimiter=';', decimal=',')
-    else:
-        df = pd.read_csv(csv_path, encoding=enc, delimiter=',')
+    first_line = clean.split('\n', 1)[0]
+    delimiter = ';' if first_line.count(';') > first_line.count(',') else ','
+    decimal = ',' if delimiter == ';' else '.'
+
+    df = pd.read_csv(io.StringIO(clean), delimiter=delimiter, decimal=decimal)
 
     COLUNAS_NUMERICAS = ['ValorTotalComprado', 'QuantidadeComprada', 'Numero_servico',
                          'ValorTotalPedenteEntrega', 'QuantidadePendenteEntrega']
