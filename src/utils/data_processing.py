@@ -38,13 +38,26 @@ def load_data(csv_path: str) -> pd.DataFrame:
     for enc in ('utf-8', 'latin-1'):
         try:
             with open(csv_path, 'r', encoding=enc) as f:
-                sample = f.read(8192)
+                first_line = f.readline()
             break
         except UnicodeDecodeError:
             continue
-    delimiter = csv.Sniffer().sniff(sample, delimiters=',;').delimiter
-    df = pd.read_csv(csv_path, encoding=enc, delimiter=delimiter)
-    df['ValorTotalComprado'] = pd.to_numeric(df['ValorTotalComprado'], errors='coerce').fillna(0)
-    df['QuantidadeComprada'] = pd.to_numeric(df['QuantidadeComprada'], errors='coerce').fillna(0)
-    df['Numero_servico'] = pd.to_numeric(df['Numero_servico'], errors='coerce').fillna(0).astype(int)
+
+    # Detectar delimitador pelo header (mais confiável que Sniffer com dados RTF)
+    delimiter = ';' if first_line.count(';') > first_line.count(',') else ','
+
+    if delimiter == ';':
+        # CSV brasileiro: ; como delimitador, , como decimal
+        df = pd.read_csv(csv_path, encoding=enc, delimiter=';', decimal=',')
+    else:
+        df = pd.read_csv(csv_path, encoding=enc, delimiter=',')
+
+    COLUNAS_NUMERICAS = ['ValorTotalComprado', 'QuantidadeComprada', 'Numero_servico',
+                         'ValorTotalPedenteEntrega', 'QuantidadePendenteEntrega']
+    for col in COLUNAS_NUMERICAS:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+
+    if 'Numero_servico' in df.columns:
+        df['Numero_servico'] = df['Numero_servico'].astype(int)
     return df
