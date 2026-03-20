@@ -1,3 +1,4 @@
+import csv
 import pandas as pd
 import os
 from pathlib import Path
@@ -33,10 +34,16 @@ def load_data(csv_path: str) -> pd.DataFrame:
     Returns:
         DataFrame com dados processados
     """
-    try:
-        df = pd.read_csv(csv_path, encoding='utf-8')
-    except UnicodeDecodeError:
-        df = pd.read_csv(csv_path, encoding='latin-1')
+    # Detectar encoding (UTF-8 ou Latin-1) e delimitador (, ou ;)
+    for enc in ('utf-8', 'latin-1'):
+        try:
+            with open(csv_path, 'r', encoding=enc) as f:
+                sample = f.read(8192)
+            break
+        except UnicodeDecodeError:
+            continue
+    delimiter = csv.Sniffer().sniff(sample, delimiters=',;').delimiter
+    df = pd.read_csv(csv_path, encoding=enc, delimiter=delimiter)
     df['ValorTotalComprado'] = pd.to_numeric(df['ValorTotalComprado'], errors='coerce').fillna(0)
     df['QuantidadeComprada'] = pd.to_numeric(df['QuantidadeComprada'], errors='coerce').fillna(0)
     df['Numero_servico'] = pd.to_numeric(df['Numero_servico'], errors='coerce').fillna(0).astype(int)
