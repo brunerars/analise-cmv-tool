@@ -9,7 +9,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-from src.utils.data_processing import load_data, get_data_path
+from src.utils.data_processing import load_data, find_data_file
 from src.utils.analysis import analyze_os, get_os_details
 from src.utils.database import (
     init_db, listar_categorizadas, get_categoria,
@@ -18,7 +18,7 @@ from src.utils.database import (
 )
 
 # Caminho dos dados (funciona em Docker e localmente)
-DATA_PATH = get_data_path() / "processed" / "cmv_data.csv"
+DATA_PATH = find_data_file()
 
 # Inicializar banco
 init_db()

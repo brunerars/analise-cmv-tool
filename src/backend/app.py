@@ -8,12 +8,12 @@ sys.path.insert(0, str(ROOT_DIR))
 import streamlit as st
 import pandas as pd
 
-from src.utils.data_processing import load_data, get_data_path
+from src.utils.data_processing import load_data, find_data_file
 from src.utils.analysis import analyze_os
 from src.utils.database import init_db, listar_categorizadas
 
 # Caminho dos dados (funciona em Docker e localmente)
-DATA_PATH = get_data_path() / "processed" / "cmv_data.csv"
+DATA_PATH = find_data_file()
 
 # Inicializar banco de dados
 init_db()
@@ -188,7 +188,7 @@ try:
 
 except FileNotFoundError:
     st.error(f"Arquivo de dados não encontrado em: {DATA_PATH}")
-    st.info("Verifique se o arquivo cmv_data.csv está em data/processed/")
+    st.info("Verifique se o arquivo cmv_data.xlsx ou cmv_data.csv está em data/processed/")
 except Exception as e:
     st.error(f"Erro ao carregar dados: {str(e)}")
     st.exception(e)

@@ -8,7 +8,7 @@ import streamlit as st
 import pandas as pd
 
 from src.utils.database import init_db, salvar_ano_oc, get_todos_anos_oc, remover_ano_oc
-from src.utils.data_processing import load_data
+from src.utils.data_processing import load_data, find_data_file
 
 init_db()
 
@@ -36,8 +36,8 @@ st.title("📅 Anos OC")
 st.markdown("Associe um **ano** a cada número de Ordem de Compra.")
 st.markdown("---")
 
-# Carregar lista de OCs disponíveis no CSV
-DATA_PATH = ROOT_DIR / "data" / "processed" / "cmv_data.csv"
+# Carregar lista de OCs disponíveis
+DATA_PATH = find_data_file()
 
 @st.cache_data
 def carregar_ocs():
